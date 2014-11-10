@@ -1,0 +1,26 @@
+- Three screens: game, scores, menu.
+- Menu screen leads you to one of the other two screens.
+- Scores screen tells you the scores or that there aren't any. There will also
+be an arrow for going back.
+- Game screen is for playing the game. The game shouldn't start right away.
+- Before starting, game asks player to "click the screen" and then game will
+start.
+- There will be the main panel for the tetris game and a 'next piece' on the
+side.
+- Pieces will come at random.
+- <space> flips a piece.
+- up, down, left, right are used to move a piece.
+- Two fast paced <down> hits will drop the piece (make it go 'as fast as'
+possible downwards).
+- On top of the tetris panel, there will be your current points and a max
+score on the side for you to compare with.
+- A score is a combination of in-game points and time to complete those
+points.
+- Data structures are organized per screen. There are MainScreen, GameScreen
+and ScoreScreen. They should be self contained in the sense that all computing
+going on while in the score screen should only use data in the DS ScoreScreen.
+
+Note: This is a rough spec about the code and the game that was written before
+any code. It's being done done in half an hour or so and it won't be changed
+after now. This will serve as a comparison point for the end of this first
+stage of the game. For more information, see the code.
