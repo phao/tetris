@@ -1,10 +1,12 @@
 CC=gcc
-DEBUG_OPTS=
-OPTIMIZATION_OPTS=-O3 -march=native
+#DEBUG_OPTS=-NDEBUG
+DEBUG_OPTS=-g
+#OPTIMIZATION_OPTS=-O3 -march=native
+OPTIMIZATION_OPTS=
 CC_DEFAULT_OPTS=-Wall -Wextra -std=c99 -pedantic
 
-OBJS=main.o
-HEADERS=
+OBJS=main.o commons.o menu.o errorfn.o
+HEADERS=commons.h.gch menu.h.gch
 
 .c.o:
 	$(CC) $(CC_DEFAULT_OPTS) $(DEBUG_OPTS) $(OPTIMIZATION_OPTS) -c $<
