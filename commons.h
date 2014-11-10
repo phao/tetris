@@ -32,13 +32,13 @@ extern ErrorFn errorFn;
 /**
  * If (COND) is false-ish, then set errorFn to (FN) and goto (GOTO).
  */
-#define COND_ERROR_SET(COND, GOTO, FN) if (!(COND)) { \
-  errorFn = (FN); goto GOTO; }
+#define COND_ERROR_SET(COND, GOTO, FN) do { if (!(COND)) { \
+  errorFn = (FN); goto GOTO; } } while (0)
 
 /**
  * IF (COND) is false-ish, then goto (GOTO).
  */
-#define COND_ERROR(COND, GOTO) if (!(COND)) { goto GOTO; }
+#define COND_ERROR(COND, GOTO) do { if (!(COND)) { goto GOTO; } } while (0)
 
 /**
  * Computes the x position that *thing would have to be in order to be
