@@ -1,21 +1,30 @@
 #include <stdio.h>
+#include <assert.h>
 
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_ttf.h>
 
-#include "commons.h"
+#include "2D.h"
+#include "assets.h"
+#include "error.h"
+#include "text_image.h"
 #include "menu.h"
+#include "screens.h"
+#include "game.h"
 
 struct Video {
   SDL_Window *window;
   SDL_Renderer *renderer;
 };
 
-static const int WIN_WIDTH = 640;
+static const int WIN_WIDTH = 540;
 static const int WIN_HEIGHT = 640;
 static const char *WIN_TITLE = "Tetris";
 
 static struct Video VIDEO;
+
+struct ScreenObject AllScreens[NUM_SCREENS];
+static struct ScreenObject *current;
 
 static int
 init_video(void) {
@@ -41,7 +50,17 @@ init_screens(void) {
 
   dim.w = WIN_WIDTH;
   dim.h = WIN_HEIGHT;
-  return init_menu(VIDEO.renderer, &dim);
+
+  COND_ERROR(init_menu(VIDEO.renderer, &dim) == 0, e_bad_menu);
+  COND_ERROR(init_game(VIDEO.renderer, &dim) == 0, e_bad_game);
+
+  current = AllScreens + MENU_SCREEN;
+  return 0;
+
+e_bad_game:
+  AllScreens[MENU_SCREEN].destroy();
+e_bad_menu:
+  return -1;
 }
 
 static void
@@ -51,14 +70,23 @@ destroy_video(void) {
 }
 
 static int
-init_game(void) {
+init(void) {
+  int i;
+
+  for (i = 0; i < NUM_SCREENS; i++) {
+    AllScreens[i] = (struct ScreenObject) {0, 0, 0, 0, 0};
+  }
+
   COND_ERROR_SET(SDL_Init(SDL_INIT_VIDEO) == 0, e_bad_sdl, SDL_GetError);
   COND_ERROR(init_video() == 0, e_bad_video);
   COND_ERROR_SET(TTF_Init() == 0, e_bad_ttf, TTF_GetError);
+  COND_ERROR(init_assets() == 0, e_bad_assets);
   COND_ERROR(init_screens() == 0, e_bad_screens);
   return 0;
 
 e_bad_screens:
+  destroy_assets();
+e_bad_assets:
   TTF_Quit();
 e_bad_ttf:
   destroy_video();
@@ -70,7 +98,14 @@ e_bad_sdl:
 
 static void
 cleanup(void) {
-  destroy_menu();
+  int i;
+
+  for (i = 0; i < NUM_SCREENS; i++) {
+    // This conditional is only for during development.
+    if (AllScreens[i].destroy) {
+      AllScreens[i].destroy();
+    }
+  }
   destroy_video();
   TTF_Quit();
   SDL_Quit();
@@ -79,19 +114,31 @@ cleanup(void) {
 static void
 game_loop(void) {
   SDL_Event e;
-  enum Screen screen;
 
+  assert(current);
+  current->focus();
+  enum ScreenId s = SELF;
   for (;;) {
     while (SDL_PollEvent(&e)) {
       if (e.type == SDL_QUIT) {
         return;
       }
-      screen = send_menu_event(&e);
-      if (screen == NONE) {
-        return;
+      s = current->handle_event(&e);
+      if (s != SELF) {
+        break;
       }
     }
-    render_menu(VIDEO.renderer);
+    if (s == SELF) {
+      s = current->update();
+    }
+    if (s != SELF) {
+      assert(s < (int)NUM_SCREENS);
+      assert(s >= 0);
+      current = AllScreens + s;
+      current->focus();
+      s = SELF;
+    }
+    current->render(VIDEO.renderer);
   }
 }
 
@@ -100,7 +147,7 @@ main(int argc, char *argv[]) {
   (void) argc;
   (void) argv;
 
-  if (init_game() < 0) {
+  if (init() < 0) {
     fprintf(stderr, "Error: %s\n", errorFn());
     return 1;
   }
@@ -108,4 +155,3 @@ main(int argc, char *argv[]) {
   cleanup();
   return 0;
 }
-

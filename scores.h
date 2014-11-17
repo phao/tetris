@@ -4,4 +4,4 @@
 #endif
 
 int
-init_menu(SDL_Renderer *r, const struct Dim2D *within);
+init_game(SDL_Renderer *r, const struct Dim2D *within);
