@@ -1,7 +1,8 @@
 #ifdef TESTING_HEADER_INCLUDES
 #include <SDL2/SDL.h>
 #include "2D.h"
+#include "screens.h"
 #endif
 
 int
-init_menu(SDL_Renderer *r, const struct Dim2D *within);
+init_menu(const struct GameContext *gx);

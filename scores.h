@@ -4,4 +4,7 @@
 #endif
 
 int
-init_game(SDL_Renderer *r, const struct Dim2D *within);
+init_scores(const struct GameContext *gx);
+
+int
+add_score(int score);

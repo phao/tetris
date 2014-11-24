@@ -1,5 +1,6 @@
 #ifdef TESTING_HEADER_INCLUDES
 #include <SDL2/SDL.h>
+#include "2D.h"
 #endif
 
 /*
@@ -43,11 +44,17 @@ enum {
   NUM_SCREENS = 3
 };
 
-typedef int (*ScreenDestroyFn)(void);
-typedef enum ScreenId (*ScreenHandleEventFn)(const SDL_Event *e);
-typedef enum ScreenId (*ScreenUpdateFn)(void);
-typedef int (*ScreenRenderFn)(SDL_Renderer *r);
-typedef int (*ScreenFocusFn)(void);
+struct GameContext {
+  SDL_Renderer *r;
+  struct Dim2D dim;
+};
+
+typedef int (*ScreenDestroyFn)(const struct GameContext *gx);
+typedef enum ScreenId (*ScreenHandleEventFn)(const struct GameContext *gx, 
+                                             const SDL_Event *e);
+typedef enum ScreenId (*ScreenUpdateFn)(const struct GameContext *gx);
+typedef int (*ScreenRenderFn)(const struct GameContext *gx);
+typedef int (*ScreenFocusFn)(const struct GameContext *gx);
 
 struct ScreenObject {
   ScreenDestroyFn destroy;
@@ -57,4 +64,5 @@ struct ScreenObject {
   ScreenFocusFn focus;
 };
 
-extern struct ScreenObject AllScreens[NUM_SCREENS];
+void
+register_screen(enum ScreenId which, const struct ScreenObject *screen);
