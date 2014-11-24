@@ -1,5 +1,4 @@
 #include <assert.h>
-#include <stdio.h>
 
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_ttf.h>
@@ -10,6 +9,7 @@
 #include "screens.h"
 #include "game.h"
 #include "assets.h"
+#include "error.h"
 
 #define WHITE_INIT_CODE {255, 255, 255, 255}
 #define BLACK_INIT_CODE {0,   0,   0,   255}
@@ -23,6 +23,7 @@
 #define COLOR7_INIT_CODE {0,   128, 255, 255}
 
 static const SDL_Color BLACK = BLACK_INIT_CODE;
+static const SDL_Color WHITE = WHITE_INIT_CODE;
 static const SDL_Color PANEL_BORDER_COLOR = WHITE_INIT_CODE;
 
 /*
@@ -35,13 +36,11 @@ static const SDL_Color PANEL_BORDER_COLOR = WHITE_INIT_CODE;
  * - matrix for blocks
  * - array for blocks count per line
  * - small array for falling block (array 4 blocks)
- * - falling blocks fall starting at 1 fall/s and move faster as points
- * go up to max 5 falls/2s.
  * - points are showed above the panel
  *
  * - view:
  * ......................
- * ..Score..SSSS.........
+ * ..Score...SSSS........
  * ......................
  * ..PPPPPPPPPPPP........
  * ..PPPPPPPPPPPP........
@@ -84,6 +83,7 @@ static const SDL_Color PANEL_BORDER_COLOR = WHITE_INIT_CODE;
 typedef struct Point2D GridPoint2D;
 typedef struct Dim2D GridDim2D;
 
+
 enum {
   PANEL_ROWS = 20,
   PANEL_COLS = 10,
@@ -110,7 +110,10 @@ struct FallingPiece {
 
 
 struct Score {
-  //struct TextImage current_score, current_points;
+  // label_text is supposed to hold the "Score" text.
+  // points_text is supposed to hold a numeric string representing how many
+  // points the player has.
+  struct TextImage label_text, points_text;
   int points;
 };
 
@@ -123,11 +126,11 @@ struct Panel {
    * Empty blocks are black.
    *
    * Row 0 is the row on the bottom. Column 0 is the column on the left. Rows
-   * grow grom bottom->up and columns from left->right.
+   * grow from bottom->up and columns from left->right.
    */
   SDL_Color blocks[PANEL_ROWS][PANEL_COLS];
 
-  struct FallingPiece falling_piece;
+  struct FallingPiece falling_piece, next_piece;
 };
 
 struct PieceTemplate {
@@ -171,12 +174,13 @@ static struct Score score;
 static Uint32 last_update_ms;
 static Uint32 fall_delay_ms;
 
-static struct Dim2D original_viewport;
+static SDL_Rect original_viewport;
 static SDL_Renderer *renderer;
+static SDL_Texture *block;
 
-static void
+static int
 destroy(void) {
-  // Nothing needs done to destroy this screen.
+  return 0;
 }
 
 static int
@@ -192,10 +196,9 @@ is_colliding(void) {
   for (int i = 0; i < NUM_PIECE_BLOCKS; i++) {
     int x = rel->x + blocks[i].x;
     int y = rel->y + blocks[i].y;
-    if (y >= PANEL_ROWS) {
-      continue;
-    }
-    if (x < 0 || x >= PANEL_COLS || y < 0 || panel_has_block(x, y)) {
+    if (x < 0 || x >= PANEL_COLS || y < 0 ||
+        (y < PANEL_ROWS && panel_has_block(x, y)))
+    {
       return 1;
     }
   }
@@ -203,8 +206,8 @@ is_colliding(void) {
 }
 
 static void
-flip(void) {
-  GridPoint2D *blocks = panel.falling_piece.blocks;
+flip(struct FallingPiece *piece) {
+  GridPoint2D *blocks = piece->blocks;
   int adj_x = 0;
   int adj_y = 0;
 
@@ -235,10 +238,10 @@ flip(void) {
 }
 
 static void
-flip_back(void) {
-  flip();
-  flip();
-  flip();
+flip_back(struct FallingPiece *piece) {
+  flip(piece);
+  flip(piece);
+  flip(piece);
 }
 
 static enum ScreenId
@@ -268,9 +271,9 @@ handle_event(const SDL_Event *e) {
         }
         break;
       case SDLK_UP:
-        flip();
+        flip(&panel.falling_piece);
         if (is_colliding()) {
-          flip_back();
+          flip_back(&panel.falling_piece);
         }
         break;
     }
@@ -287,20 +290,38 @@ is_falling(void) {
 }
 
 static void
+update_next_piece(void) {
+  int piece_num = rand()%NUM_DIFFERENT_PIECES;
+  memcpy(panel.next_piece.blocks, template[piece_num].fills,
+    NUM_PIECE_BLOCKS * sizeof (GridPoint2D));
+  panel.next_piece.color = colors[piece_num];
+  int num_flips = rand()%4;
+  for (int i = 0; i < num_flips; i++) {
+    flip(&panel.next_piece);
+  }
+  // Depending on how many flips took place, height becomes width and
+  // vice-versa.
+  if (num_flips % 2 == 1) {
+    panel.next_piece.relative = (GridPoint2D) {
+      .x = PANEL_COLS/2 - template[piece_num].size.h/2,
+      .y = PANEL_ROWS - template[piece_num].size.w/2 - 1
+    };
+  }
+  else {
+    panel.next_piece.relative = (GridPoint2D) {
+      .x = PANEL_COLS/2 - template[piece_num].size.w/2,
+      .y = PANEL_ROWS - template[piece_num].size.h/2 - 1
+    };
+  }
+}
+
+static void
 spawn_piece(void) {
   assert(!is_falling());
-
-  int piece_num = rand()%NUM_DIFFERENT_PIECES;
-
-  memcpy(panel.falling_piece.blocks, template[piece_num].fills,
-    NUM_PIECE_BLOCKS * sizeof (GridPoint2D));
-  panel.falling_piece.color = colors[piece_num];
-  panel.falling_piece.relative = (GridPoint2D) {
-    .x = PANEL_COLS/2 - template[piece_num].size.w/2,
-    .y = PANEL_ROWS - template[piece_num].size.h/2 - 1
-  };
-
+  memcpy(&panel.falling_piece, &panel.next_piece,
+    sizeof (struct FallingPiece));
   assert(is_falling());
+  update_next_piece();
 }
 
 static void
@@ -328,34 +349,54 @@ eliminate_line(int line) {
 static int
 try_score_line(int line) {
   int i;
-  int pts = 0;
   for (i = 0; i < PANEL_COLS; i++) {
     if (xSDL_ColorEq(panel.blocks[line]+i, &BLACK)) {
       return 0;
     }
   }
   eliminate_line(line);
-  pts += PANEL_COLS;
-  return pts;
+  // 1, 2 or 3 points depending on how high the player is.
+  return line < 5 ? 1 : (line < 13 ? 2 : 3);
 }
 
-static void
+static int
+refresh_points_text(void) {
+  char text[30];
+  snprintf(text, sizeof text, "%d", score.points);
+  SDL_DestroyTexture(score.points_text.image);
+  if (init_text_image(&score.points_text, get_medium_font(), text,
+                      renderer) < 0)
+  {
+    return -1;
+  }
+  score.points_text.pos.x = PADDING_PX + panel.panel_rect.w - 
+    score.points_text.dim.w;
+  return 0;
+}
+
+static int
 try_score(void) {
   int pts = 0;
   int upper_bound = PANEL_ROWS;
   int i = 0;
+  int lines = 0;
   while (i < upper_bound) {
     int line_pts = try_score_line(i);
     if (line_pts != 0) {
       pts += line_pts;
       upper_bound--;
+      lines++;
     }
     else {
       i++;
     }
   }
-  pts <<= pts/PANEL_COLS - 1;
+  // Each extra line you remove, you should double your points. If a line
+  // gives you P points, removing 2 lines will give you 2P points, but
+  // removing 3 lines (at once) will give you 4P; 4 lines 8P.
+  pts <<= lines - 1;
   score.points += pts;
+  return refresh_points_text();
 }
 
 static void
@@ -374,6 +415,7 @@ fixate(void) {
   reset_piece();
   try_score();
 }
+
 
 static enum ScreenId
 update(void) {
@@ -394,9 +436,6 @@ update(void) {
   else {
     spawn_piece();
     if (is_colliding()) {
-      SDL_Rect viewport = {.x = 0, .y = 0,
-        .w = original_viewport.w, .h = original_viewport.h};
-      SDL_RenderSetViewport(renderer, &viewport);
       return MENU_SCREEN;
     }
   }
@@ -410,7 +449,7 @@ empty_blocks(void) {
   }
 }
 
-static void
+static int
 focus(void) {
   last_update_ms = SDL_GetTicks();
   fall_delay_ms = INIT_FALL_DELAY_MS;
@@ -418,6 +457,13 @@ focus(void) {
   // On focus, a new game should be started.
   empty_blocks();
   reset_piece();
+  score.points = 0;
+  int err = refresh_points_text() < 0;
+  if (err != 0) {
+    return err;
+  }
+  update_next_piece();
+  return 0;
 }
 
 static void
@@ -430,20 +476,29 @@ render_panel_border(SDL_Renderer *r) {
 }
 
 static void
+render_block(SDL_Renderer *r,
+             const SDL_Rect *rect,
+             const SDL_Color *color)
+{
+  xSDL_SetTextureColorMod(block, color);
+  SDL_RenderCopy(r, block, 0, rect);
+}
+
+static void
 render_panel_blocks(SDL_Renderer *r) {
-  SDL_Rect block = (SDL_Rect) {
+  SDL_Rect block_rect = (SDL_Rect) {
     .w = panel.block_dim.w,
     .h = panel.block_dim.h
   };
 
   for (int i = 0; i < PANEL_ROWS; i++) {
-    block.y = (PANEL_ROWS - i - 1)*block.h;
+    block_rect.y = (PANEL_ROWS - i - 1)*block_rect.h;
     for (int j = 0; j < PANEL_COLS; j++) {
-      block.x = block.w*j;
-      xSDL_SetRenderDrawColor(r, panel.blocks[i] + j);
-      SDL_RenderFillRect(r, &block);
+      block_rect.x = block_rect.w*j;
+      render_block(r, &block_rect, panel.blocks[i] + j);
     }
   }
+  xSDL_SetTextureColorMod(block, &WHITE);
 }
 
 static void
@@ -466,22 +521,47 @@ render_falling_piece(SDL_Renderer *r) {
 
     // Remembering, again, that vertical indices grow from bottom -> up.
     block_rect.x = block->x*block_w + base_x_px;
-    block_rect.y = (-block->y)*block_h + base_y_px;
+    block_rect.y = -block->y*block_h + base_y_px;
 
-    xSDL_SetRenderDrawColor(r, &panel.falling_piece.color);
-    SDL_RenderFillRect(r, &block_rect);
+    render_block(r, &block_rect, &panel.falling_piece.color);
   }
+  xSDL_SetTextureColorMod(block, &WHITE);
 }
 
 static void
+render_score(SDL_Renderer *r) {
+  render_text_image(r, &score.label_text);
+  render_text_image(r, &score.points_text);
+}
+
+static void
+render_next_piece(SDL_Renderer *r) {
+  SDL_Rect block_rect;
+  block_rect.w = panel.block_dim.w;
+  block_rect.h = panel.block_dim.h;
+  int base_x = PADDING_PX*2 + panel.panel_rect.w;
+  int base_y = PADDING_PX*2 + MEDIUM_FONT_SIZE + 
+    block_rect.h*NUM_PIECE_BLOCKS;
+  
+  for (int i = 0; i < NUM_PIECE_BLOCKS; i++) {
+    block_rect.x = base_x + panel.next_piece.blocks[i].x*block_rect.w;
+    block_rect.y = base_y - panel.next_piece.blocks[i].y*block_rect.h;
+    render_block(r, &block_rect, &panel.next_piece.color);
+  }
+}
+
+static int
 render(SDL_Renderer *r) {
-  xSDL_SetRenderDrawColor(r, &DEFAULT_BG_COLOR);
-  SDL_RenderClear(r);
   SDL_RenderSetViewport(r, &panel.panel_rect);
   render_panel_blocks(r);
   render_falling_piece(r);
   render_panel_border(r);
-  SDL_RenderPresent(r);
+  
+  SDL_RenderSetViewport(renderer, &original_viewport);
+  render_score(r);
+  render_next_piece(r);
+  
+  return 0;
 }
 
 int
@@ -504,7 +584,7 @@ init_game(SDL_Renderer *r, const struct Dim2D *within) {
    * panel for next piece width:
    *  - 4 * block size
    */
-
+   
   int panel_top_margin = PADDING_PX*2 + MEDIUM_FONT_SIZE;
   panel.block_dim = (PixelDim2D) {
     .w = (within->w - 3*PADDING_PX)/(PANEL_COLS+4),
@@ -516,9 +596,25 @@ init_game(SDL_Renderer *r, const struct Dim2D *within) {
     .x = PADDING_PX,
     .y = panel_top_margin
   };
+  
+  TTF_Font *font = get_medium_font();
+  COND_ERROR(init_text_image(&score.label_text, font, "Pts", r) == 0,
+    e_bad_score_text);
+  COND_ERROR(init_text_image(&score.points_text, font, "0", r) == 0,
+    e_bad_points_text);
+  
+  score.label_text.pos.x = PADDING_PX;
+  score.label_text.pos.y = PADDING_PX;
+  score.points_text.pos.x = PADDING_PX + panel.panel_rect.w - 
+    score.points_text.dim.w;
+  score.points_text.pos.y = PADDING_PX;
 
-  original_viewport = *within;
+  original_viewport = (SDL_Rect) {
+    .x = 0, .y = 0,
+    .w = within->w, .h = within->h
+  };
   renderer = r;
+  block = get_tetris_block_img();
 
   AllScreens[GAME_SCREEN] = (struct ScreenObject) {
     .focus = focus,
@@ -529,4 +625,9 @@ init_game(SDL_Renderer *r, const struct Dim2D *within) {
   };
 
   return 0;
+  
+e_bad_points_text:
+  SDL_DestroyTexture(score.label_text.image);
+e_bad_score_text:
+  return -1;
 }

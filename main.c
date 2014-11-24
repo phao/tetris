@@ -80,8 +80,10 @@ init(void) {
   COND_ERROR_SET(SDL_Init(SDL_INIT_VIDEO) == 0, e_bad_sdl, SDL_GetError);
   COND_ERROR(init_video() == 0, e_bad_video);
   COND_ERROR_SET(TTF_Init() == 0, e_bad_ttf, TTF_GetError);
-  COND_ERROR(init_assets() == 0, e_bad_assets);
+  COND_ERROR(init_assets(VIDEO.renderer) == 0, e_bad_assets);
+  
   COND_ERROR(init_screens() == 0, e_bad_screens);
+  
   return 0;
 
 e_bad_screens:
@@ -112,6 +114,15 @@ cleanup(void) {
 }
 
 static void
+render(void) {
+  SDL_Texture *bg = get_bg_img();
+  SDL_Renderer *r = VIDEO.renderer;
+  SDL_RenderCopy(r, bg, 0, 0);
+  current->render(r);
+  SDL_RenderPresent(r);
+}
+
+static void
 game_loop(void) {
   SDL_Event e;
 
@@ -138,7 +149,7 @@ game_loop(void) {
       current->focus();
       s = SELF;
     }
-    current->render(VIDEO.renderer);
+    render();
   }
 }
 
@@ -146,9 +157,14 @@ int
 main(int argc, char *argv[]) {
   (void) argc;
   (void) argv;
-
+  
   if (init() < 0) {
-    fprintf(stderr, "Error: %s\n", errorFn());
+    if (errorFn) {
+      fprintf(stderr, "Error: %s\n", errorFn());
+    }
+    else {
+      fprintf(stderr, "Error signalled, but errorFn is null.\n");
+    }
     return 1;
   }
   game_loop();

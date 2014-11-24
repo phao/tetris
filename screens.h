@@ -36,18 +36,18 @@
  */
 
 enum ScreenId {
-  MENU_SCREEN, GAME_SCREEN, SCORES_SCREEN, SELF
+  MENU_SCREEN, GAME_SCREEN, SCORES_SCREEN, SELF, ERROR
 };
 
 enum {
   NUM_SCREENS = 3
 };
 
-typedef void (*ScreenDestroyFn)(void);
+typedef int (*ScreenDestroyFn)(void);
 typedef enum ScreenId (*ScreenHandleEventFn)(const SDL_Event *e);
 typedef enum ScreenId (*ScreenUpdateFn)(void);
-typedef void (*ScreenRenderFn)(SDL_Renderer *r);
-typedef void (*ScreenFocusFn)(void);
+typedef int (*ScreenRenderFn)(SDL_Renderer *r);
+typedef int (*ScreenFocusFn)(void);
 
 struct ScreenObject {
   ScreenDestroyFn destroy;

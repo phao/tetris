@@ -1,4 +1,4 @@
-#include <stdio.h>
+#include <assert.h>
 
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_ttf.h>
@@ -22,11 +22,15 @@ enum {
 
 static struct MenuScreen MENU;
 
-static void
+static int
 destroy(void) {
+  assert(MENU.title.image);
+  assert(MENU.new_game.image);
+  assert(MENU.scores.image);
   SDL_DestroyTexture(MENU.title.image);
   SDL_DestroyTexture(MENU.new_game.image);
   SDL_DestroyTexture(MENU.scores.image);
+  return 0;
 }
 
 static enum ScreenId
@@ -49,19 +53,17 @@ update(void) {
   return SELF;
 }
 
-static void
+static int
 focus(void) {
+  return 0;
 }
 
-static void
+static int
 render(SDL_Renderer *r) {
-  SDL_SetRenderDrawColor(r, DEFAULT_BG_COLOR.r, DEFAULT_BG_COLOR.g,
-    DEFAULT_BG_COLOR.b, DEFAULT_BG_COLOR.a);
-  SDL_RenderClear(r);
   render_text_image(r, &MENU.title);
   render_text_image(r, &MENU.new_game);
   render_text_image(r, &MENU.scores);
-  SDL_RenderPresent(r);
+  return 0;
 }
 
 int
