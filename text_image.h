@@ -1,8 +1,9 @@
-#ifdef TESTING_HEADER_INCLUDES
+#ifndef TEXT_IMAGE_H
+#define TEXT_IMAGE_H
+
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_ttf.h>
 #include "2D.h"
-#endif
 
 struct TextImage {
   struct Dim2D dim;
@@ -29,3 +30,5 @@ init_text_image(struct TextImage *ti,
 
 int
 in_bounds(int x, int y, const struct TextImage *ti);
+
+#endif

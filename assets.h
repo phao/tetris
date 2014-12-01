@@ -1,7 +1,8 @@
-#ifdef TESTING_HEADER_INCLUDES
+#ifndef ASSETS_H
+#define ASSETS_H
+
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_ttf.h>
-#endif
 
 static const struct SDL_Color DEFAULT_BG_COLOR = {25, 25, 25, 255};
 static const struct SDL_Color DEFAULT_FG_COLOR = {225, 225, 225, 255};
@@ -32,3 +33,5 @@ get_tetris_block_img(void);
 
 SDL_Texture*
 get_bg_img(void);
+
+#endif

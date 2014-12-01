@@ -1,3 +1,6 @@
+#ifndef ERROR_H
+#define ERROR_H
+
 typedef const char *(*ErrorFn)(void);
 
 extern ErrorFn errorFn;
@@ -13,3 +16,4 @@ extern ErrorFn errorFn;
  */
 #define COND_ERROR(COND, GOTO) do { if (!(COND)) { goto GOTO; } } while (0)
 
+#endif

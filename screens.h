@@ -1,7 +1,8 @@
-#ifdef TESTING_HEADER_INCLUDES
+#ifndef SCREENS_H
+#define SCREENS_H
+
 #include <SDL2/SDL.h>
 #include "2D.h"
-#endif
 
 /*
  * A screen is supposed to support some operations through functions it
@@ -50,7 +51,7 @@ struct GameContext {
 };
 
 typedef int (*ScreenDestroyFn)(const struct GameContext *gx);
-typedef enum ScreenId (*ScreenHandleEventFn)(const struct GameContext *gx, 
+typedef enum ScreenId (*ScreenHandleEventFn)(const struct GameContext *gx,
                                              const SDL_Event *e);
 typedef enum ScreenId (*ScreenUpdateFn)(const struct GameContext *gx);
 typedef int (*ScreenRenderFn)(const struct GameContext *gx);
@@ -66,3 +67,5 @@ struct ScreenObject {
 
 void
 register_screen(enum ScreenId which, const struct ScreenObject *screen);
+
+#endif

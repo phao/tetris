@@ -1,0 +1,171 @@
+Refer to little_specs.txt for the initial view I had in mind for the game.
+Below is a copy of it.
+
+================
+little_specs.txt
+================
+- Three screens: game, scores, menu.
+- Menu screen leads you to one of the other two screens.
+- Scores screen tells you the scores or that there aren't any. There will also
+be an arrow for going back.
+- Game screen is for playing the game. The game shouldn't start right away.
+- Before starting, game asks player to "click the screen" and then game will
+start.
+- There will be the main panel for the tetris game and a 'next piece' on the
+side.
+- Pieces will come at random.
+- <space> flips a piece.
+- up, down, left, right are used to move a piece.
+- Two fast paced <down> hits will drop the piece (make it go 'as fast as'
+possible downwards).
+- On top of the tetris panel, there will be your current points and a max
+score on the side for you to compare with.
+- A score is a combination of in-game points and time to complete those
+points.
+- Data structures are organized per screen. There are MainScreen, GameScreen
+and ScoreScreen. They should be self contained in the sense that all computing
+going on while in the score screen should only use data in the DS ScoreScreen.
+
+Note: This is a rough spec about the code and the game that was written before
+any code. It's being done done in half an hour or so and it won't be changed
+after now. This will serve as a comparison point for the end of this first
+stage of the game. For more information, see the code.
+
+===========================================
+Point-by-Point Analysis of little_specs.txt
+===========================================
+The game has three screens as planned, and indeed the menu screen leads you
+to the other two screens. The scores screen behaves differently than what
+was predicted. When no scores were recorded, then it's pretty much a 'blank'
+panel. To go back, you don't have an arrow image, you hit ESC. The fact that
+there is no text for when there are no recorded scores is a bug.
+
+The game screen is for playing the game. The game does start right away, which
+is another bug. The next piece on the side was implemented and it works just
+fine. Pieces do come at random, but it's the up arrow key that flips the piece,
+which seems way better than having the space bar do it. Moving the piece up
+was a bug in the specification. That's not something you can do in tetris
+games.
+
+The two fast hits to the down arrow key doesn't make it drop. Holding the down
+arrow key will make it go faster though. This seems like a better feature to
+have than having the drop. But having the drop instead would make the game
+harder it seems. I'll leave this as is.
+
+The game screen doesn't show you the max score for you to compare with. That is
+a bug.
+
+The specification had something to say about the data structures used in the
+game. This is a bug in it. It shouldn't be talking about such matters.
+
+=============
+Current Specs
+=============
+While little_specs.txt was a rough requirements document. This, however is a
+report on what characteristics the game actually has. It's a document built by
+analyzing what was really built.
+
+- There are three screens: MENU, SCORES and GAME.
+- At the beginning of the game or right after the transition from a screen
+to another, the tetris music should re-start.
+- Music plays in an infinite loop.
+- Theme song is the classic tetris theme song.
+- All screens have a static simple black and white pixelart-ish stars
+background.
+- The game starts at the MENU screen.
+- To quit the game, you hit the X button on your window. Some underlying
+shortcut can also be used (like ALT+F4 on linux/xfce4). There is no in-game
+sure-fire way to close the game (like hitting ESC on the MENU screen).
+
+- The MENU screen has a title and two buttons to lead each to the other two
+screens.
+
+- The SCORES screen shows the recorded high scores of the session (from game
+beginning to closing the game).
+- Scores aren't remembered through game sessions.
+- When there aren't any scores, the SCORES screen will only show the
+background, a title and the help text telling the player how to go back.
+- Hitting ESC goes back form the SCORES screen to the MENU screen.
+- Only the top 5 scores are shown.
+
+- During the game play, pieces do seen to come randomly. Sometimes it feels
+like the game is against you, but it also feels like it's helping you some
+other times.
+- There is nothing before hitting "new game" and the game starting. The player
+doesn't have to click anywhere or do anything. The game starts right after
+the player going into the GAME screen.
+- When the player loses, the game just goes back to the MENU screen. There is
+no "Game Over" or no indication that your score is now in the top 5, or that
+it's a new global record.
+- There is no animation or sound effect when a line is cleared during the game.
+- You can control the piece with up, down, left and right. Using the up arrow
+key will flip the piece. Using the down arrow key will make it move faster
+downwards, but it won't drop it right away.
+- If you clear more lines at once, there are more points to be made. If you
+clear those lines higher in the pieces panel, then yet more points are to be
+made: clearing 1 and the first line makes you 1 point; clearing 4 lines above
+at once will give you 96 points.
+  - Clearing N lines: N*2^(N-1)*P where P is the position modifier.
+  - For bottom, P is 1; middle, P=2; above, P=3.
+  - So for N=3 in the middle: 3*2^2*2 = 3*8 = 24.
+
+Some of the emphasis on this list is bringing into the foreground things I
+think were a mistake and things I think were done well. For example:
+
+Mistakes:
+
+- No animation or sound effect when clearing lines.
+- Static background. It should be animated.
+- Game starts without prompting the player. No indication of how the particular
+play affected your scores.
+- Nothing but going back to the MENU screen happens when you lose.
+- Scores aren't persisted.
+- Soundtrack restarts at the beginning of every screen.
+- No levels. The game doesn't get more difficult in any way.
+
+Rights:
+
+- Points system. It encourages you to try going for 4 lines at once above the
+middle ground. It makes the game riskier (more interesting then).
+- Down button doesn't drop the piece right away. This is a deviation from
+little_specs.txt, but I think this turned out to be a better thing to do.
+
+The rights also include all the places in which the actual spec was in sync
+with what a tetris game should do and with what was expected for the game in
+the first place (see little_specs.txt). For example, it's a right that when you
+have a filled row, it disappears and you score. But it's not useful specifying
+all of those cases because then this list would be huge.
+
+Things I'm not sure if were rights or wrongs:
+
+- In no point, the scoring system is explained to the player. This gives an
+advantage to the more observant player (that sees way more points being made
+by clearing more rows). It also adds a "secondary puzzle", which is breaking
+down the rules for scoring.
+- Only 5, and not 10, or 3, top scores.
+- No speeding up as the game progress.
+
+============================
+Difficulty in Playing Tetris
+============================
+One of the ways in which I said I made a mistake was:
+
+  "No levels. The game doesn't get more difficult in any way."
+
+Also, a characteristic which I don't know if I did it right or not was:
+
+  "No speeding up as the game progress."
+
+These may seem conflicting, but they're actually not. There are different ways
+to make tetris more difficult:
+
+- Restricting how many times a piece may be flipped (3 for most difficulty).
+- Increasing the speed in which a piece falls.
+- Increasing the "cooldown" of a flip action (as of now, you can flip as
+much and as fast as you can hit the up arrow key).
+- Slowing how fast you can move the piece horizontally.
+- Increasing how fast the piece falls when you hit the downwards arrow key.
+- Having an AI that picks pieces that will purposely hurt your game.
+- Dropping blocks which can't be cleared.
+
+And many more...

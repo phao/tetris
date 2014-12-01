@@ -1,5 +1,4 @@
 #include <stdio.h>
-#include <assert.h>
 
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_ttf.h>
@@ -14,6 +13,7 @@
 #include "game.h"
 #include "scores.h"
 #include "music.h"
+#include "xassert.h"
 
 enum {
   WIN_WIDTH = 540,
@@ -144,12 +144,16 @@ static int
 game_loop(void) {
   SDL_Event e;
   
-  assert(current);
+  xassert(current);
+  
   current->focus(&gx);
+  play_new();
+  
   enum ScreenId s = SELF;
   int err = 0;
-  play_new();
+  
   for (;;) {
+    // Events
     while (SDL_PollEvent(&e)) {
       if (e.type == SDL_QUIT) {
         return 0;
@@ -162,15 +166,19 @@ game_loop(void) {
         break;
       }
     }
+    
+    // Screen Update
     if (s == SELF) {
       s = current->update(&gx);
       if (s == ERROR) {
         return -1;
       }
     }
+    
+    // Screen Change?
     if (s != SELF) {
-      assert(s < (int)NUM_SCREENS);
-      assert(s >= 0);
+      xassert(s < (int)NUM_SCREENS);
+      xassert(s >= 0);
       current = all_screens[s];
       err = current->focus(&gx);
       if (err < 0) {
@@ -179,6 +187,8 @@ game_loop(void) {
       s = SELF;
       play_new();
     }
+    
+    // Render.
     err = render();
     if (err < 0) {
       return err;

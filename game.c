@@ -189,7 +189,7 @@ flip_back(struct FallingPiece *piece) {
 static enum ScreenId
 handle_event(const struct GameContext *gx, const SDL_Event *e) {
   (void) gx;
-  
+
   GridPoint2D *rel = &panel.falling_piece.relative;
   if (e->type == SDL_KEYDOWN) {
     switch (e->key.keysym.sym) {
@@ -292,14 +292,13 @@ eliminate_line(int line) {
 
 static int
 try_score_line(int line) {
-  int i;
-  for (i = 0; i < PANEL_COLS; i++) {
+  for (int i = 0; i < PANEL_COLS; i++) {
     if (xSDL_ColorEq(panel.blocks[line]+i, &BLACK)) {
       return 0;
     }
   }
   eliminate_line(line);
-  // 1, 2 or 3 points depending on how high the player is.
+  // 1, 2 or 3 points depending on how high the player is (=D).
   return line < 5 ? 1 : (line < 13 ? 2 : 3);
 }
 
@@ -311,7 +310,7 @@ refresh_points_text(SDL_Renderer *r) {
   if (init_text_image(&score.points_text, get_medium_font(), text, r) < 0) {
     return -1;
   }
-  score.points_text.pos.x = PADDING_PX + panel.panel_rect.w - 
+  score.points_text.pos.x = PADDING_PX + panel.panel_rect.w -
     score.points_text.dim.w;
   return 0;
 }
@@ -333,15 +332,18 @@ try_score(SDL_Renderer *r) {
       i++;
     }
   }
-  // Each extra line you remove, you should double your points. If a line
-  // gives you P points, removing 2 lines will give you 2P points, but
-  // removing 3 lines (at once) will give you 4P; 4 lines 8P.
-  pts <<= lines - 1;
-  score.points += pts;
-  return refresh_points_text(r);
+  if (lines > 0) {
+    // Each extra line you remove, you should double your points. If a line
+    // gives you P points, removing 2 lines will give you 2P points, but
+    // removing 3 lines (at once) will give you 4P; 4 lines 8P.
+    pts <<= lines - 1;
+    score.points += pts;
+    return refresh_points_text(r);
+  }
+  return 0;
 }
 
-static void
+static int
 fixate(SDL_Renderer *r) {
   const GridPoint2D *rel = &panel.falling_piece.relative;
   const GridPoint2D *blocks = panel.falling_piece.blocks;
@@ -355,7 +357,7 @@ fixate(SDL_Renderer *r) {
     panel.blocks[y][x] = panel.falling_piece.color;
   }
   reset_piece();
-  try_score(r);
+  return try_score(r);
 }
 
 static enum ScreenId
@@ -368,7 +370,9 @@ update(const struct GameContext *gx) {
       rel->y--;
       if (is_colliding()) {
         rel->y++;
-        fixate(gx->r);
+        if (fixate(gx->r) < 0) {
+          return ERROR;
+        }
       }
       last_update_ms = now_ms;
     }
@@ -397,7 +401,7 @@ empty_blocks(void) {
 static int
 focus(const struct GameContext *gx) {
   (void) gx;
-  
+
   last_update_ms = SDL_GetTicks();
   fall_delay_ms = INIT_FALL_DELAY_MS;
 
@@ -437,7 +441,7 @@ render_panel_blocks(SDL_Renderer *r) {
     .w = panel.block_dim.w,
     .h = panel.block_dim.h
   };
-  
+
   for (int i = 0; i < PANEL_ROWS; i++) {
     block_rect.y = (PANEL_ROWS - i - 1)*block_rect.h;
     for (int j = 0; j < PANEL_COLS; j++) {
@@ -462,7 +466,7 @@ render_falling_piece(SDL_Renderer *r) {
   SDL_Rect block_rect;
   block_rect.w = panel.block_dim.w;
   block_rect.h = panel.block_dim.h;
-  
+
   for (int i = 0; i < NUM_PIECE_PARTS; i++) {
     const GridPoint2D *block = panel.falling_piece.blocks + i;
 
@@ -486,11 +490,11 @@ render_next_piece(SDL_Renderer *r) {
   SDL_Rect block_rect;
   block_rect.w = panel.block_dim.w;
   block_rect.h = panel.block_dim.h;
-  
+
   int base_x = PADDING_PX*2 + panel.panel_rect.w;
-  int base_y = PADDING_PX*2 + MEDIUM_FONT_SIZE + 
+  int base_y = PADDING_PX*2 + MEDIUM_FONT_SIZE +
     block_rect.h*NUM_PIECE_PARTS;
-  
+
   for (int i = 0; i < NUM_PIECE_PARTS; i++) {
     block_rect.x = base_x + panel.next_piece.blocks[i].x*block_rect.w;
     block_rect.y = base_y - panel.next_piece.blocks[i].y*block_rect.h;
@@ -504,15 +508,15 @@ render(const struct GameContext *gx) {
   render_panel_blocks(gx->r);
   render_falling_piece(gx->r);
   render_panel_border(gx->r);
-  
+
   SDL_Rect original_viewport = (SDL_Rect) {
     .x = 0, .y = 0, .w = gx->dim.w, .h = gx->dim.h
   };
-  
+
   SDL_RenderSetViewport(gx->r, &original_viewport);
   render_score(gx->r);
   render_next_piece(gx->r);
-  
+
   return 0;
 }
 
@@ -534,7 +538,7 @@ init_game(const struct GameContext *gx) {
    * panel for next piece width:
    *  - 4 * block size
    */
-   
+
   int panel_top_margin = PADDING_PX*2 + MEDIUM_FONT_SIZE;
   panel.block_dim = (PixelDim2D) {
     .w = (gx->dim.w - 3*PADDING_PX)/(PANEL_COLS+4),
@@ -546,16 +550,16 @@ init_game(const struct GameContext *gx) {
     .x = PADDING_PX,
     .y = panel_top_margin
   };
-  
+
   TTF_Font *font = get_medium_font();
   COND_ERROR(init_text_image(&score.label_text, font, "Pts", gx->r) == 0,
     e_bad_score_text);
   COND_ERROR(init_text_image(&score.points_text, font, "0", gx->r) == 0,
     e_bad_points_text);
-  
+
   score.label_text.pos.x = PADDING_PX;
   score.label_text.pos.y = PADDING_PX;
-  score.points_text.pos.x = PADDING_PX + panel.panel_rect.w - 
+  score.points_text.pos.x = PADDING_PX + panel.panel_rect.w -
     score.points_text.dim.w;
   score.points_text.pos.y = PADDING_PX;
 
@@ -567,11 +571,11 @@ init_game(const struct GameContext *gx) {
     .destroy = destroy
   };
   register_screen(GAME_SCREEN, &self);
-  
+
   block = get_tetris_block_img();
 
   return 0;
-  
+
 e_bad_points_text:
   SDL_DestroyTexture(score.label_text.image);
 e_bad_score_text:

@@ -1,3 +1,6 @@
+#ifndef _2D_H
+#define _2D_H
+
 struct Dim2D {
   int w, h;
 };
@@ -19,3 +22,5 @@ hor_center_within(const struct Dim2D *thing,
 {
   return (within->w - thing->w)/2;
 }
+
+#endif

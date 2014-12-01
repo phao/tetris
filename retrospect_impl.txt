@@ -1,0 +1,419 @@
+This is a follow up to retrospect.txt, but here I talk about implementation
+aspects.
+
+======================
+Implementation Aspects
+======================
+The implementation of the game wasn't that complicated. It's a C program using
+the SDL2 library. Being a C program usually means you'll have to worry about
+details you usually don't worry about by programming in another language.
+
+====
+SDL2
+====
+SDL2 makes a ton of things really convenient. For example, the following items
+were trivial to be dealt with because of how SDL2 deals with them:
+
+- Keyboard input
+- Rendering
+- Timing
+
+These items above weren't complicated according to the games spec, and SDL2
+made it so that they weren't complicated in implementation either. That's a
+big win. SDL2 didn't make the system more complicated than it seemed it would
+have to be.
+
+Using OpenGL for example would have made rendering be a bit more complicated
+than what it seems it had to be because of how much setup code that ends up
+getting written with OpenGL.
+
+In general, SDL2 got out of the way and it let me do what I wanted to do,
+except in one case, which I'll talk about later.
+
+#######
+Modules
+#######
+These are the major modules in the game:
+
+- main
+- menu screen
+- scores screen
+- game screen
+- assets
+- music
+
+The key to understanding the overall modules structure is the screens
+structure. Each screen should have these functions: init, focus, update,
+handle_event, render, and destroy.
+
+Main calls the init function of every screen module. This allows the module to
+tell main what are its other 5 functions. Main doesn't know those out of the
+box, it has to be told what they are. This is done through a function exposed
+by the main module called register_screen. Here is an example of calling
+register_screen from the init_game function:
+
+  self = (struct ScreenObject) {
+    .focus = focus,
+    .render = render,
+    .update = update,
+    .handle_event = handle_event,
+    .destroy = destroy
+  };
+  register_screen(GAME_SCREEN, &self);
+
+Main knows there are only 3 screens (3 is actually a program constant), and
+that each has an integer ID (also program constants). Calling register_screen
+tells main which is the bag of (the 5) function pointers for a given screen ID.
+
+The type struct ScreenObject serves to pack together pointers to screen
+functions, except for the screen's init function, because it isn't needed
+during game play.
+
+Before calling the init function of each screen module (init_game,
+init_scores, init_menu), main will setup the other parts of the program: SDL2,
+SDL2_ttf, SDL2_image, SDL2_mixer, assets module, music module, a window, a
+renderer, etc. By the time a screen init function is called, all of those other
+parts were already initialized.
+
+After all the setup is done, if no error occured, the main module enters into
+the game loop. The game loop goes pretty much like this:
+
+  - Initially, current screen is MENU.
+  - Call current screen's focus function.
+  - LOOP:
+    - Get events.
+    - Send events to current screen's handler function.
+    - Transition to another screen if needed (call focus on transition).
+    - Call current screen's update function.
+    - Transition to another screen if needed (call focus on transition).
+    - Call current screen's render function.
+
+Transitioning to another screen happens when handle_event or update tells
+main (through a sentinel return value) to leave itself and go to another
+screen. When a transition happens, the new screen's focus function is called.
+
+The game loop function follows. It relies on a bunch of module variables
+(static file scope variables in main.c) that main uses to do its job. For more
+on it, check main.c in the source tree.
+
+  static int
+  game_loop(void) {
+    SDL_Event e;
+
+    xassert(current);
+
+    current->focus(&gx);
+    play_new();
+
+    enum ScreenId s = SELF;
+    int err = 0;
+
+    for (;;) {
+      // Events
+      while (SDL_PollEvent(&e)) {
+        if (e.type == SDL_QUIT) {
+          return 0;
+        }
+        s = current->handle_event(&gx, &e);
+        if (s == ERROR) {
+          return -1;
+        }
+        else if (s != SELF) {
+          break;
+        }
+      }
+
+      // Screen Update
+      if (s == SELF) {
+        s = current->update(&gx);
+        if (s == ERROR) {
+          return -1;
+        }
+      }
+
+      // Screen Change?
+      if (s != SELF) {
+        xassert(s < (int)NUM_SCREENS);
+        xassert(s >= 0);
+        current = all_screens[s];
+        err = current->focus(&gx);
+        if (err < 0) {
+          return err;
+        }
+        s = SELF;
+        play_new();
+      }
+
+      // Render.
+      err = render();
+      if (err < 0) {
+        return err;
+      }
+    }
+    return 0;
+  }
+
+It's also interesting to take a look at main's cleanup and render functions
+because they also make use of screen functions.
+
+  static void
+  cleanup(void) {
+    int i;
+
+    for (i = 0; i < NUM_SCREENS; i++) {
+      if (all_screens[i]->destroy(&gx) < 0) {
+        fprintf(stderr, "Error while destroying screen: %d.\n", i);
+        report_error();
+      }
+    }
+    destroy_video();
+    TTF_Quit();
+    IMG_Quit();
+    SDL_Quit();
+  }
+
+  static int
+  render(void) {
+    SDL_Texture *bg = get_bg_img();
+    SDL_RenderCopy(gx.r, bg, 0, 0);
+    int err = current->render(&gx);
+    if (err < 0) {
+      return err;
+    }
+    SDL_RenderPresent(gx.r);
+    return 0;
+  }
+
+Main has a helper procude to initialize screens. It has the init functions
+hard coded in it. It also makes use of the screen functions, but it's in a
+specialized manner for setup/shutdown.
+
+  static int
+  init_screens(void) {
+    COND_ERROR(init_menu(&gx) == 0, e_bad_menu);
+    COND_ERROR(init_game(&gx) == 0, e_bad_game);
+    COND_ERROR(init_scores(&gx) == 0, e_bad_scores);
+
+    current = all_screens[MENU_SCREEN];
+    return 0;
+
+  e_bad_scores:
+    all_screens[GAME_SCREEN]->destroy(&gx);
+  e_bad_game:
+    all_screens[MENU_SCREEN]->destroy(&gx);
+  e_bad_menu:
+    return -1;
+  }
+
+This function exposes a little of error handling in the program, which is the
+next topic. But before that, here is an example of a screen init function and
+of a focus funcion.
+
+From game.c, focus:
+
+  static int
+  focus(const struct GameContext *gx) {
+    (void) gx;
+
+    last_update_ms = SDL_GetTicks();
+    fall_delay_ms = INIT_FALL_DELAY_MS;
+
+    // On focus, a new game should be started.
+    empty_blocks();
+    reset_piece();
+    score.points = 0;
+    int err = refresh_points_text(gx->r);
+    if (err < 0) {
+      return err;
+    }
+    update_next_piece();
+    return 0;
+  }
+
+From menu.c, init_menu:
+
+  int
+  init_menu(const struct GameContext *gx) {
+    TTF_Font *title_font, *button_font;
+
+    menu.within = gx->dim;
+    title_font = get_large_font();
+    button_font = get_medium_font();
+
+    COND_ERROR(
+      init_text_image(&menu.title, title_font, "Tetris", gx->r) == 0,
+      e_bad_title_text);
+    menu.title.pos.x = hor_center_within(&menu.title.dim, &menu.within);
+    menu.title.pos.y = TOP_TITLE_OFFSET;
+
+    COND_ERROR(
+      init_text_image(&menu.new_game, button_font, "New Game", gx->r) == 0,
+      e_bad_new_game_text);
+    menu.new_game.pos.x = hor_center_within(&menu.new_game.dim, &menu.within);
+    menu.new_game.pos.y = TOP_MENU_OFFSET;
+
+    COND_ERROR(
+      init_text_image(&menu.scores, button_font, "High Scores", gx->r) == 0,
+      e_bad_scores_text);
+    menu.scores.pos.x = hor_center_within(&menu.scores.dim, &menu.within);
+    menu.scores.pos.y = TOP_MENU_OFFSET + menu.new_game.dim.h;
+
+    self = (struct ScreenObject) {
+      .destroy = destroy,
+      .handle_event = handle_event,
+      .update = update,
+      .render = render,
+      .focus = focus
+    };
+    register_screen(MENU_SCREEN, &self);
+
+    return 0;
+
+  e_bad_scores_text:
+    SDL_DestroyTexture(menu.new_game.image);
+  e_bad_new_game_text:
+    SDL_DestroyTexture(menu.title.image);
+  e_bad_title_text:
+    return -1;
+  }
+
+##############
+Error Handling
+##############
+Right away, one major topics in doing a C programming is error handling. The
+reaction to an error in this game is basically print an error message and
+quit.
+
+Errors were usually from procedures outside the control of the game, like
+initializing SDL or loading an image.
+
+Here is an example of error handling reasoning done in the game.
+
+If the tetris image for a block cannot be loaded, then the game will quit with
+an error. The error can be avoided by having the block image be rendered
+through a procedure that takes an SDL_Renderer* and draws the block. This
+approach is harmful for many reasons:
+
+- It means reprogramming a function whenever the looks of the tetris block
+is  changed.
+- It also means that visualizing off game the looks of the image would be more
+difficult.
+- It also means experimenting with different visuals for the image would be
+considerably more work.
+- There would be no instant feedback of how the image looks as you implement
+it.
+
+So even though the error of not being able to load an image could have been
+fully avoided, it wasn't.
+
+The C language provides very little support for error handling. So what ends up
+happening is that you come up with your own techniques for it. In this program,
+error handling is basically done through these means:
+
+- COND_ERROR macro
+- COND_ERROR_SET macro
+- errorFn global function pointer
+- returning sentinel values indicating errors
+- sequences of labels marking statements that cascade for clean up
+
+Here is a code (from main.c) which involves all of those:
+
+  static int
+  init(void) {
+    gx.dim.w = WIN_WIDTH;
+    gx.dim.h = WIN_HEIGHT;
+
+    COND_ERROR_SET(SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO) == 0, e_bad_sdl,
+      SDL_GetError);
+    COND_ERROR(init_video() == 0, e_bad_video);
+    COND_ERROR_SET(TTF_Init() == 0, e_bad_ttf, TTF_GetError);
+    COND_ERROR_SET((IMG_Init(IMG_INIT_PNG) & IMG_INIT_PNG) == IMG_INIT_PNG,
+      e_bad_img, IMG_GetError);
+    COND_ERROR(init_assets(gx.r) == 0, e_bad_assets);
+    COND_ERROR(init_music() == 0, e_bad_music);
+    COND_ERROR(init_screens() == 0, e_bad_screens);
+
+    return 0;
+
+  e_bad_screens:
+    destroy_music();
+  e_bad_music:
+    destroy_assets();
+  e_bad_assets:
+    IMG_Quit();
+  e_bad_img:
+    TTF_Quit();
+  e_bad_ttf:
+    destroy_video();
+  e_bad_video:
+    SDL_Quit();
+  e_bad_sdl:
+    return -1;
+  }
+
+The COND_ERROR macro will check if a condition that is given to it is true. If
+it isn't, then it'll go to the label given as the second parameter. The
+COND_ERROR_SET macro will do the same, but it'll set errorFn to its third
+parameter right before going to the given label.
+
+Functions usually return a negative int for error and 0 for success. Sometimes
+null for error and not null for success.
+
+The labels are setup in such a way that cascading makes for proper clean up
+in reverse order in which the items were initialized. For example, SDL_Quit
+is called last and SDL_Init is called first. This ordering allows for setups
+and shutdowns that depend on each other.
+
+The combination of these features allows for local error handling somewhat
+conveniently. It's problematic mostly because the reverse ordering isn't
+enforced and because the clean up code is in a different section of the
+function, and not right after its test condition. In general, it's a very
+error prone mechanism.
+
+As it turned out, error handling for initialization code wasn't an issue. It
+was generally pretty striaghtforward to do so. What was mostly annoying was
+error handling in the middle of game logic. For example, to update the scores
+text when the player scored, a new image is created. This operation can fail,
+and as a result of that, every update of the game can potentially fail.
+
+================
+Assets and Music
+================
+The decision to have a module dedicated to assets loading and providing made
+things very easy.
+
+The assets module simply has an initialization function that loads up all the
+assets, constructs the fonts and so forth. It then provides a bunch of
+functions for other modules to get those assets.
+
+For the music module, it works as a very simple player that can initialize,
+shutdown, and replay the tetris theme song.
+
+=======
+Modules
+=======
+The modules structure turned out to work pretty well.
+
+It could be argued that the game screen module does too much. Splitting it into
+pieces could scatter the core game logic into different places, which I don't
+think is very helpful for something small like tetris, but there are splits
+that could have been done which wouldn't cause that problem. For example, there
+could be a module for manipulating a blocks panel. It could have operations
+like, clear_full_lines, add_block, has_block_at, render_block_panel, and stuff
+like that. Such module would simplify the game screen module without scattering
+the core tetris game logic into multiple places.
+
+Besides this issue with game.c, the modules structure seems fine. It's
+surprising how effective file scope static names can be. Leaving dynamic
+dispatch on the side, a module can be though of as behaving like a single
+object with local aids (the module local names implemented through static file
+scope things).
+
+=========
+C and C++
+=========
+The game was developed fully in C. I wonder how much simpler (or complex) it
+would become by having it in C++.
+
+I'll probably re-write the game in C++ to the best of my knowledge to see if I
+can make it better.
