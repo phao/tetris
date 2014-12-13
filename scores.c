@@ -19,88 +19,88 @@ static struct TextImage exit_hint, title;
 static struct TextImage score_texts[NUM_SCORES];
 static int scores[NUM_SCORES];
 static int used_scores = 0;
+static SDL_Renderer *g_rend;
+static PixelDim2D screen_dim;
 
-static struct ScreenObject self;
+static void
+destroy(void) {
+  destroy_text_image(&exit_hint);
+  destroy_text_image(&title);
+  for (int i = 0; i < NUM_SCORES; i++) {
+    destroy_text_image(score_texts + i);
+  }
+}
 
 static int
-destroy(const struct GameContext *gx) {
-  (void) gx;
+handle_event(const SDL_Event *e) {
+  if (e->type == SDL_KEYDOWN && e->key.keysym.sym == SDLK_ESCAPE) {
+    change_screen(MENU_SCREEN);
+  }
   return 0;
 }
 
-static enum ScreenId
-handle_event(const struct GameContext *gx, const SDL_Event *e) {
-  (void) gx;
-  
-  if (e->type == SDL_KEYDOWN) {
-    if (e->key.keysym.sym == SDLK_ESCAPE) {
-      return MENU_SCREEN;
-    }
-  }
-  return SELF;
-}
-
-static enum ScreenId
-update(const struct GameContext *gx) {
-  (void) gx;
-  return SELF;
+static int
+update(void) {
+  return 0;
 }
 
 static int
-focus(const struct GameContext *gx) {
+focus(void) {
   enum {
     SCORE_CHARS_LIMIT = 30
   };
-  
+
   char score_chars[SCORE_CHARS_LIMIT];
   TTF_Font *medium_font = get_medium_font();
-  
+
   for (int i = 0; i < used_scores; i++) {
-    if (score_texts[i].image != 0) {
-      SDL_DestroyTexture(score_texts[i].image);
-    }
+    destroy_text_image(score_texts + i);
     snprintf(score_chars, SCORE_CHARS_LIMIT, "%d", scores[i]);
-    int err = init_text_image(score_texts + i, medium_font, score_chars, gx->r);
-    if (err < 0) {
-      return err;
-    }
-    score_texts[i].pos.x = gx->dim.w/2 - score_texts[i].dim.w/2;
-    score_texts[i].pos.y = 2*LARGE_FONT_SIZE + PADDING_PX*(i+1) + 
+    COND_PRET_LT0(init_text_image(score_texts + i, medium_font, score_chars,
+      g_rend, &DEFAULT_FG_COLOR));
+    score_texts[i].pos.x = screen_dim.w/2 - score_texts[i].dim.w/2;
+    score_texts[i].pos.y = 2*LARGE_FONT_SIZE + PADDING_PX*(i+1) +
       i*MEDIUM_FONT_SIZE;
   }
+
   return 0;
 }
 
 static int
-render(const struct GameContext *gx) {
-  render_text_image(gx->r, &title);
-  render_text_image(gx->r, &exit_hint);
-  
+render(void) {
+  COND_PRET_LT0(render_text_image(&title));
+  COND_PRET_LT0(render_text_image(&exit_hint));
+
   for (int i = 0; i < used_scores; i++) {
-    render_text_image(gx->r, score_texts + i);
+    COND_PRET_LT0(render_text_image(score_texts + i));
   }
-  
+
   return 0;
 }
 
 int
-init_scores(const struct GameContext *gx) {
+init_scores(SDL_Renderer *g_rend_, const PixelDim2D *screen_dim_) {
+  g_rend = g_rend_;
+  screen_dim = *screen_dim_;
+
   TTF_Font *small_font = get_small_font();
   TTF_Font *large_font = get_large_font();
-  
-  COND_ERROR(
-    init_text_image(&exit_hint, small_font, "Hit ESC to go back.", gx->r) == 0,
-    e_bad_exit_hint);
-  exit_hint.pos.x = gx->dim.w - exit_hint.dim.w;
-  exit_hint.pos.y = gx->dim.h - exit_hint.dim.h;
-  
-  COND_ERROR(
-    init_text_image(&title, large_font, "High Scores", gx->r) == 0,
-    e_bad_title);
-  title.pos.x = gx->dim.w/2 - title.dim.w/2;
+
+  COND_PGOTO_LT0(
+    init_text_image(&exit_hint, small_font, "Hit ESC to go back.", g_rend,
+      &DEFAULT_FG_COLOR),
+    e_cleanup);
+  exit_hint.pos.x = screen_dim.w - exit_hint.dim.w;
+  exit_hint.pos.y = screen_dim.h - exit_hint.dim.h;
+
+  COND_PGOTO_LT0(
+    init_text_image(&title, large_font, "High Scores", g_rend,
+      &DEFAULT_FG_COLOR),
+    e_cleanup);
+  title.pos.x = screen_dim.w/2 - title.dim.w/2;
   title.pos.y = LARGE_FONT_SIZE;
 
-  self = (struct ScreenObject) {
+  const ScreenObject self = {
     .focus = focus,
     .render = render,
     .update = update,
@@ -111,14 +111,12 @@ init_scores(const struct GameContext *gx) {
 
   return 0;
 
-e_bad_title:
-  SDL_DestroyTexture(exit_hint.image);
-  exit_hint.image = 0;
-e_bad_exit_hint:
+e_cleanup:
+  destroy();
   return -1;
 }
 
-int
+void
 add_score(int score) {
   for (int i = 0; i < used_scores; i++) {
     if (scores[i] < score) {
@@ -131,5 +129,4 @@ add_score(int score) {
     scores[used_scores] = score;
     used_scores++;
   }
-  return 0;
 }

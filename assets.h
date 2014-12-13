@@ -4,14 +4,14 @@
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_ttf.h>
 
-static const struct SDL_Color DEFAULT_BG_COLOR = {25, 25, 25, 255};
-static const struct SDL_Color DEFAULT_FG_COLOR = {225, 225, 225, 255};
-static const int LARGE_FONT_SIZE = 46;
-static const int MEDIUM_FONT_SIZE = 34;
-static const int SMALL_FONT_SIZE = 22;
-static const int BLOCK_WIDTH = 30;
-static const int BLOCK_HEIGHT = 30;
-static const int NUM_SONGS = 5;
+enum {
+  LARGE_FONT_SIZE = 46,
+  MEDIUM_FONT_SIZE = 34,
+  SMALL_FONT_SIZE = 22,
+  BLOCK_WIDTH = 30,
+  BLOCK_HEIGHT = 30,
+  NUM_SONGS = 5
+};
 
 int
 init_assets(SDL_Renderer *r);

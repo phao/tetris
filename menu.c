@@ -8,100 +8,84 @@
 #include "text_image.h"
 #include "screens.h"
 #include "assets.h"
-#include "menu.h"
-
-struct MenuScreen {
-  struct Dim2D within;
-  struct TextImage title, new_game, scores;
-};
 
 enum {
   TOP_TITLE_OFFSET = 50,
   TOP_MENU_OFFSET = 250
 };
 
-static struct ScreenObject self;
-static struct MenuScreen menu;
+static Dim2D screen_dim;
+static TextImage title, new_game, scores;
+static SDL_Renderer *g_rend;
 
-static int
-destroy(const struct GameContext *gx) {
-  (void) gx;
-  
-  assert(menu.title.image);
-  assert(menu.new_game.image);
-  assert(menu.scores.image);
-  SDL_DestroyTexture(menu.title.image);
-  SDL_DestroyTexture(menu.new_game.image);
-  SDL_DestroyTexture(menu.scores.image);
-  return 0;
+static void
+destroy(void) {
+  destroy_text_image(&title);
+  destroy_text_image(&new_game);
+  destroy_text_image(&scores);
 }
 
-static enum ScreenId
-handle_event(const struct GameContext *gx, const SDL_Event *e) {
-  (void) gx;
-  
+static int
+handle_event(const SDL_Event *e) {
   if (e->type == SDL_MOUSEBUTTONDOWN) {
     int x, y;
     SDL_GetMouseState(&x, &y);
-    if (in_bounds(x, y, &menu.new_game)) {
-      return GAME_SCREEN;
+    if (in_bounds(&new_game, x, y)) {
+      change_screen(GAME_SCREEN);
     }
-    else if (in_bounds(x, y, &menu.scores)) {
-      return SCORES_SCREEN;
+    else if (in_bounds(&scores, x, y)) {
+      change_screen(SCORES_SCREEN);
     }
   }
-  return SELF;
-}
-
-static enum ScreenId
-update(const struct GameContext *gx) {
-  (void) gx;
-  
-  return SELF;
-}
-
-static int
-focus(const struct GameContext *gx) {
-  (void) gx;
-  
   return 0;
 }
 
 static int
-render(const struct GameContext *gx) {
-  render_text_image(gx->r, &menu.title);
-  render_text_image(gx->r, &menu.new_game);
-  render_text_image(gx->r, &menu.scores);
+update(void) {
+  return 0;
+}
+
+static int
+focus(void) {
+  return 0;
+}
+
+static int
+render(void) {
+  COND_PRET_LT0(render_text_image(&title));
+  COND_PRET_LT0(render_text_image(&new_game));
+  COND_PRET_LT0(render_text_image(&scores));
   return 0;
 }
 
 int
-init_menu(const struct GameContext *gx) {
-  TTF_Font *title_font, *button_font;
+init_menu(SDL_Renderer *g_rend_, const PixelDim2D *screen_dim_) {
+  g_rend = g_rend_;
+  screen_dim = *screen_dim_;
 
-  menu.within = gx->dim;
-  title_font = get_large_font();
-  button_font = get_medium_font();
+  TTF_Font *title_font = get_large_font();
+  TTF_Font *button_font = get_medium_font();
 
-  COND_ERROR(
-    init_text_image(&menu.title, title_font, "Tetris", gx->r) == 0,
-    e_bad_title_text);
-  menu.title.pos.x = hor_center_within(&menu.title.dim, &menu.within);
-  menu.title.pos.y = TOP_TITLE_OFFSET;
+  COND_PGOTO_LT0(
+    init_text_image(&title, title_font, "Tetris", g_rend, &DEFAULT_FG_COLOR),
+    e_cleanup);
+  COND_PGOTO_LT0(
+    init_text_image(&new_game, button_font, "New Game", g_rend,
+      &DEFAULT_FG_COLOR),
+    e_cleanup);
+  COND_PGOTO_LT0(
+    init_text_image(&scores, button_font, "High Scores", g_rend,
+      &DEFAULT_FG_COLOR),
+    e_cleanup);
 
-  COND_ERROR(
-    init_text_image(&menu.new_game, button_font, "New Game", gx->r) == 0,
-    e_bad_new_game_text);
-  menu.new_game.pos.x = hor_center_within(&menu.new_game.dim, &menu.within);
-  menu.new_game.pos.y = TOP_MENU_OFFSET;
+  title.pos.x = hor_center_within(&title.dim, &screen_dim);
+  title.pos.y = TOP_TITLE_OFFSET;
+  new_game.pos.x = hor_center_within(&new_game.dim, &screen_dim);
+  new_game.pos.y = TOP_MENU_OFFSET;
+  scores.pos.x = hor_center_within(&scores.dim, &screen_dim);
+  scores.pos.y = TOP_MENU_OFFSET + new_game.dim.h;
 
-  COND_ERROR(
-    init_text_image(&menu.scores, button_font, "High Scores", gx->r) == 0,
-    e_bad_scores_text);
-  menu.scores.pos.x = hor_center_within(&menu.scores.dim, &menu.within);
-  menu.scores.pos.y = TOP_MENU_OFFSET + menu.new_game.dim.h;
-
-  self = (struct ScreenObject) {
+  ScreenObject self = {
     .destroy = destroy,
     .handle_event = handle_event,
     .update = update,
@@ -112,10 +96,7 @@ init_menu(const struct GameContext *gx) {
 
   return 0;
 
-e_bad_scores_text:
-  SDL_DestroyTexture(menu.new_game.image);
-e_bad_new_game_text:
-  SDL_DestroyTexture(menu.title.image);
-e_bad_title_text:
+e_cleanup:
+  destroy();
   return -1;
 }

@@ -7,7 +7,7 @@ init_music(void);
 int
 play_new(void);
 
-int
+void
 destroy_music(void);
 
 #endif

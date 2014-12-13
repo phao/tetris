@@ -2,13 +2,14 @@
 #define SCORES_H
 
 #include <SDL2/SDL.h>
-#include "2D.h"
+
 #include "screens.h"
+#include "2D.h"
 
 int
-init_scores(const struct GameContext *gx);
+init_scores(SDL_Renderer *g_rend_, const PixelDim2D *screen_dim_);
 
-int
+void
 add_score(int score);
 
 #endif
