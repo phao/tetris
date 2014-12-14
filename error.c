@@ -80,7 +80,7 @@ link_error(const char *msg,
   return 0;
 }
 
-ErrorInfo*
+struct ErrorInfo*
 get_error(void) {
   struct ErrorInfo *out = 0;
   for (struct ErrorInfo *n = err_info; n; n = n->next) {
@@ -100,7 +100,7 @@ free_error(struct ErrorInfo *err) {
     err_info = 0;
   }
   while (err) {
-    ErrorInfo *aux = err->next;
+    struct ErrorInfo *aux = err->next;
     free(err->msg.data);
     free(err->file_name.data);
     free(err->func_name.data);

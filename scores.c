@@ -100,7 +100,7 @@ init_scores(SDL_Renderer *g_rend_, const PixelDim2D *screen_dim_) {
   title.pos.x = screen_dim.w/2 - title.dim.w/2;
   title.pos.y = LARGE_FONT_SIZE;
 
-  const ScreenObject self = {
+  const struct ScreenObject self = {
     .focus = focus,
     .render = render,
     .update = update,

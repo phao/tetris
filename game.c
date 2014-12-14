@@ -54,13 +54,11 @@ struct FallingPiece {
   SDL_Color color;
 };
 
-typedef struct FallingPiece FallingPiece;
-
 struct Score {
   // label_text is supposed to hold the "Score" text.
   // points_text is supposed to hold a numeric string representing how many
   // points the player has.
-  TextImage label_text, points_text;
+  struct TextImage label_text, points_text;
   int points;
 };
 
@@ -76,7 +74,7 @@ struct Panel {
    */
   SDL_Color blocks[PANEL_ROWS][PANEL_COLS];
 
-  FallingPiece falling_piece, next_piece;
+  struct FallingPiece falling_piece, next_piece;
 };
 
 static const SDL_Color colors[NUM_DIFFERENT_PIECES] = {
@@ -134,8 +132,8 @@ panel_has_block(int x, int y) {
 
 static int
 is_colliding(void) {
-  const struct GridPoint2D *rel = &panel.falling_piece.relative;
-  const struct GridPoint2D *blocks = panel.falling_piece.blocks;
+  const GridPoint2D *rel = &panel.falling_piece.relative;
+  const GridPoint2D *blocks = panel.falling_piece.blocks;
 
   for (int i = 0; i < NUM_PIECE_PARTS; i++) {
     int x = rel->x + blocks[i].x;
@@ -151,7 +149,7 @@ is_colliding(void) {
 
 static void
 flip(struct FallingPiece *piece) {
-  struct GridPoint2D *blocks = piece->blocks;
+  GridPoint2D *blocks = piece->blocks;
   int adj_x = 0;
   int adj_y = 0;
 
@@ -190,7 +188,7 @@ flip_back(struct FallingPiece *piece) {
 
 static int
 handle_event(const SDL_Event *e) {
-  struct GridPoint2D *rel = &panel.falling_piece.relative;
+  GridPoint2D *rel = &panel.falling_piece.relative;
   if (e->type == SDL_KEYDOWN) {
     switch (e->key.keysym.sym) {
       case SDLK_DOWN:
@@ -264,7 +262,7 @@ spawn_piece(void) {
   SDL_assert(!is_falling());
   memcpy(&panel.falling_piece,
          &panel.next_piece,
-         sizeof (FallingPiece));
+         sizeof (struct FallingPiece));
   SDL_assert(is_falling());
   update_next_piece();
 }
@@ -349,8 +347,8 @@ try_score(void) {
 
 static int
 fixate(void) {
-  const struct GridPoint2D *rel = &panel.falling_piece.relative;
-  const struct GridPoint2D *blocks = panel.falling_piece.blocks;
+  const GridPoint2D *rel = &panel.falling_piece.relative;
+  const GridPoint2D *blocks = panel.falling_piece.blocks;
 
   for (int i = 0; i < NUM_PIECE_PARTS; i++) {
     int x = rel->x + blocks[i].x;
@@ -373,7 +371,7 @@ update(void) {
     Uint32 delta_ms = now_ms - last_update_ms;
 
     if (delta_ms > FALL_DELAY_MS) {
-      struct GridPoint2D *rel = &panel.falling_piece.relative;
+      GridPoint2D *rel = &panel.falling_piece.relative;
 
       rel->y--;
       if (is_colliding()) {
@@ -457,7 +455,7 @@ render_falling_piece(void) {
   const int block_w = panel.block_dim.w;
   const int block_h = panel.block_dim.h;
 
-  const struct GridPoint2D *rel = &panel.falling_piece.relative;
+  const GridPoint2D *rel = &panel.falling_piece.relative;
 
   // Remembering that vertical indices grow from bottom -> up.
   const int base_x_px = rel->x*block_w;
@@ -468,7 +466,7 @@ render_falling_piece(void) {
   block_rect.h = panel.block_dim.h;
 
   for (int i = 0; i < NUM_PIECE_PARTS; i++) {
-    const struct GridPoint2D *block = panel.falling_piece.blocks + i;
+    const GridPoint2D *block = panel.falling_piece.blocks + i;
 
     // Remembering, again, that vertical indices grow from bottom -> up.
     block_rect.x = block->x*block_w + base_x_px;
