@@ -7,7 +7,7 @@
 #include "text_image.h"
 
 int
-render_text_image(TextImage *ti) {
+render_text_image(struct TextImage *ti) {
   SDL_Rect region = {
     .x = ti->pos.x, .y = ti->pos.y,
     .w = ti->dim.w, .h = ti->dim.h
@@ -18,7 +18,7 @@ render_text_image(TextImage *ti) {
 }
 
 int
-init_text_image(TextImage *ti,
+init_text_image(struct TextImage *ti,
                 TTF_Font *font,
                 const char *text,
                 SDL_Renderer *rend,
@@ -41,7 +41,7 @@ e_cleanup:
 }
 
 int
-in_bounds(const TextImage *ti, int x, int y) {
+in_bounds(const struct TextImage *ti, int x, int y) {
   return x >= ti->pos.x
     && x <= (ti->pos.x + ti->dim.w)
     && y >= ti->pos.y
@@ -49,6 +49,6 @@ in_bounds(const TextImage *ti, int x, int y) {
 }
 
 void
-destroy_text_image(TextImage *ti) {
+destroy_text_image(struct TextImage *ti) {
   xSDL_DestroyTexture(&ti->image);
 }

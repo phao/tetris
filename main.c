@@ -27,8 +27,8 @@ static const char *WIN_TITLE = "Tetris";
 static SDL_Window *window;
 static SDL_Renderer *rend;
 static PixelDim2D screen_size;
-static ScreenObject all_screens[NUM_SCREENS];
-static ScreenObject *current;
+static struct ScreenObject all_screens[NUM_SCREENS];
+static struct ScreenObject *current;
 
 static int
 init_video(void) {
@@ -100,17 +100,17 @@ fmt_message(const char *msg, const char *alt) {
 
 static void
 report_error(void) {
-  ErrorInfo *err = get_error();
-  const char *fmt = "\t%s: %s: L%d: %s\n"
+  struct ErrorInfo *err = get_error();
+  const char *fmt = "\t%s: L%d: %s: %s\n"
     "\t\t%s\n";
   fputs("Error! Aborting program.\n"
          "Bread Crumbs:\n"
          "=============\n", stderr);
-  for (ErrorInfo *p = err; p; p = p->next) {
+  for (struct ErrorInfo *p = err; p; p = p->next) {
     fprintf(stderr, fmt,
       fmt_message(p->file_name.data, "(missing file name)"),
-      fmt_message(p->func_name.data, "(missing function name)"),
       p->line,
+      fmt_message(p->func_name.data, "(missing function name)"),
       fmt_message(p->msg.data, "(missing message)"),
       fmt_message(p->code.data, "(missing code)"));
   }
@@ -151,7 +151,8 @@ error_quit() {
 }
 
 void
-register_screen(const ScreenId which, const ScreenObject *screen) {
+register_screen(const enum ScreenId which,
+                const struct ScreenObject *screen) {
   const int screen_i = (int) which;
   SDL_assert(screen_i >= 0);
   SDL_assert(screen_i < NUM_SCREENS);
@@ -159,7 +160,7 @@ register_screen(const ScreenId which, const ScreenObject *screen) {
 }
 
 void
-change_screen(const ScreenId which) {
+change_screen(const enum ScreenId which) {
   const int screen_i = (int) which;
   SDL_assert(screen_i >= 0);
   SDL_assert(screen_i < NUM_SCREENS);

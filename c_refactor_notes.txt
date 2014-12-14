@@ -1,0 +1,295 @@
+This is the third document about this project. The first one was about my
+intended specs for the program. The second was a post analysis of the project.
+This one is the result of a refactor due to a code review I had to do while
+doing the C++ re-write of this project, which actually also yield a document as
+well.
+
+Notice that unless said differently, "object" has its C meaning, which is
+pretty much a memory region.
+
+The Major Change - Error Handling
+=================================
+As was mentioned several times when an error happens, the program quits with an
+error message.
+
+One of the things I've noticed in my code review is that the error handling
+mechanism had a too much complicated clean up scheme. It depended on series of
+labels whose cascading would lead to the right clean up. This scheme had an
+advantage. It was local. It also required a lot of those clean up code
+everywhere, and sometimes even duplication of clean up code (one under the
+error related labels, and another in a destroy function). For example, while
+loading a screen, if it fails, init must clean up, but the screen abstract
+object must also contain a destroy function will cleans up the screen.
+
+So the first change in error handling is that although local clean up is still
+allowed (and done in some places), it's no longer necessary. All modules will
+have their destroy functions called at the end, and they should be able to
+do something reasonable even if the module hasn't been initialized yet.
+
+For example, if initializing the assets module fails, the program shuts down by
+calling all the clean up procedures available (more on this later), reporting
+the error, and exiting. One of the available modules is the music module. The
+music module is only initialized after the assets module as it happens to be
+right now (that is not to be relied upon, but it is how it is). So its destroy
+procedure gets called even though it wasn't initialized. It should be, and is,
+able to deal with such cases.
+
+In general, what this first change means is that if a clean up function gets
+called, it should be able to deal with an "uninitialized situation" in the
+case of a module. This last point should be clear: "in the case of a module".
+Although there is a module implementing the data type TextImage, an instance of
+TextImage itself isn't a module. This first change isn't saying that
+destroy_text_image has to work on an uninitialized TextImage object.
+
+The way modules can deal with this first change is by using module local
+variables. It's no big deal, but it makes clean up much easier.
+
+The second change has to do with reporting the error. Back then, when an error
+happened, what one would see is the error message from a direct call to one of
+(SDL|IMG|TTF|Mix)_GetError. There were problems with this approach. I never
+faced those problems, but I thought it'd be interesting to fix them anyway.
+
+For example, once an error is identified, errorFn, which doesn't exist anymore,
+was set to the appropriated function pointer ((SDL|IMG|TTF|Mix)_GetError for
+example) and a goto statement to the appropriated clean up label was  executed.
+During the clean up SDL functions would be called to clean up previously set up
+state. The issue is that some SDL functions set the error message even though
+they don't fail. So after the clean up, the error message set internally in the
+SDL and helper libraries could be completely different from what it was when
+the error happened.
+
+This means that I should be saving the contents of the message at the point of
+failure instead of saving the function pointer.
+
+Another issue with error handling was that there was no trace. I don't mean a
+full stack trace, but there is a sequence of calls which lead to failure, and
+I'd like to know what is that sequence. My attempt to do that led me to
+complete a simple, but pretty useful as it seems, error reporting system. Here
+is an example:
+
+  [tetris] (master)$ ./main
+  Error! Aborting program.
+  Bread Crumbs:
+  =============
+    text_image.c: init_text_image: L30: (missing message)
+      FAILED CHECK: !stext
+    menu.c: init_menu: L71: (missing message)
+      FAILED CHECK: init_text_image(&title, title_font, "Tetris", g_rend, &DEFAULT_FG_COLOR)
+    main.c: init_screens: L51: (missing message)
+      FAILED CHECK: init_menu(rend, &screen_size)
+    main.c: init: L67: (missing message)
+      FAILED CHECK: init_screens()
+    main.c: main: L182: (missing message)
+      FAILED CHECK: init()
+
+    SDL_GetError() => (empty)
+    IMG_GetError() => (empty)
+    TTF_GetError() => (empty)
+    Mix_GetError() => (empty)
+
+This is a report of what gets collected when an error happens. It points that
+there was a sequence of calls: main -> init -> init_screens -> init_menu ->
+init_text_image. It points out which checks failed, the line of code in which
+the check was being performed, and also the file name. The message, which
+is missing in all of the entries is something custom (at error checking point,
+it has to be provided, or it'll be missing). The error message is used only
+for the case in which I want to copy the error message contents from
+(SDL|IMG|TTF|Mix)_GetError. The 4 last lines tell the current messages
+reported by the (SDL|IMG|TTF|Mix)_GetError functions at error reporting time.
+This could be useful, but I'm not so sure.
+
+Here is an example of when there is an error message to set:
+
+  [tetris] (master)$ ./main
+  Error! Aborting program.
+  Bread Crumbs:
+  =============
+    assets.c: init_assets: L44: Couldn't open arcade.sttf
+      FAILED CODE: large_font
+    main.c: init: L65: (missing message)
+      FAILED CODE: init_assets(rend)
+    main.c: main: L173: (missing message)
+      FAILED CODE: init()
+
+    SDL_GetError() => Couldn't open arcade.sttf
+    IMG_GetError() => Couldn't open arcade.sttf
+    TTF_GetError() => Couldn't open arcade.sttf
+    Mix_GetError() => Couldn't open arcade.sttf
+
+This is all using standard C. I imagine that going OS specific, something
+better can be done.
+
+The way this is done is by changing how to error macros work. Doing something
+like
+
+  COND_ERROR_SET(error_check, label, function_pointer);
+
+would expand to pretty much into
+
+  do {
+    if (!error_check) {
+      errorFn = function_pointer;
+      goto label;
+    }
+  } while (0)
+
+Now what happens is that there are other macros. This one (COND_ERROR_SET) and
+its friend (COND_ERROR) are gone. What exists now is for example,
+COND_ERET_LT0. Here is how you'd use it:
+
+  COND_ERET_LT0(SDL_Init(SDL_INIT_VIDEO), SDL_GetMessage())
+
+It's defined as follows:
+
+  #define COND_ERET_LT0(EXPR, MSG) do { \
+      int ERROR_H__err = (EXPR); \
+      if (ERROR_H__err < 0) { \
+        link_error((MSG), __LINE__, __FILE__, __func__, # EXPR); \
+        return ERROR_H__err; \
+      } \
+    } while (0)
+
+The call to link_error adds an entry to the error module, which maintains an
+internal structure of error entries. Each entry you add is chained together
+with the existing ones. At any point you can ask for a copy of the error
+chain (which you'd have to free yourself later on through a call to
+free_error).
+
+There are macros for:
+
+  - return and gotos (RET, GOTO);
+  - true conditionals, false conditionals and less than 0 results (no
+  suffix, IF0, LT0);
+  - when there is a message, and when there isn't (E, P).
+
+So for example, COND_PGOTO_LT0 will goto the given label if the given
+expression is less than 0, and also it'll provide no error message.
+
+Error messages are always the last parameter to the macro application, and
+the error check always the first. Some times, three parameters are needed, and
+the one in the middle has custom semantics. For example, COND_ERET_LT0 will
+return whatever the failing expression will return in the case of an error,
+but COND_ERET_IF0 needs a parameter which indicates which is the return
+value:
+
+  COND_ERET_IF0(sdl_renderer, -1, SDL_GetError())
+    => Will return -1 if sdl_renderer is false-ish. It'll also add the error
+    message returned by SDL_GetError in the case of an error.
+
+The downside of this approach is that it fills the code with macro
+applications, which were already in for the old error handling approach (they
+were just different macros), so that didn't make the code any worse. Another
+downside is the use of that ERROR_H__err variable inside a do..while block. I
+don't think that's going to be an issue. The error module relies on the
+ability to declare variables whose identifiers are prefixed with ERROR_H inside
+those do..while blocks.
+
+As a final, and less important downside, the error module relies heavily on
+dynamic allocation, which I was hoping to avoid in this program, but since it's
+only for the error gathering/reporting mechanism, which is only used when the
+program is about the shut down, I don't think it'll be an issue.
+
+A benefit is that it's general. It doesn't depend on this tetris program at
+all.
+
+The struct ErrorInfo
+====================
+These are the two structs that power error handling.
+
+  struct BasicString {
+    char *data;
+    int len;
+  };
+
+  struct ErrorInfo {
+    struct BasicString msg, file_name, func_name, code;
+    int line;
+    struct ErrorInfo *next;
+  };
+
+This is a basic linked list structure. Each link has information abouts its
+error entry and a pointer to the call which led to it. There are them 3
+functions for error handling:
+
+  int
+  link_error(const char *msg,
+             int line,
+             const char *file_name,
+             const char *func_name,
+             const char *code);
+
+  struct ErrorInfo*
+  get_error(void);
+
+  void
+  free_error(struct ErrorInfo *err);
+
+Notice that link_error, alone, is very clumsy to use. It's not meant to be
+used directly, even though you can. It's meant to be used through the error
+handling macros.
+
+When you ask for error information with get_error, you get a copy of the
+internal error structure, which you should free once you're done with it
+through the free_error function. If you pass null to free_error, it's going
+to free the internall error structure. This is useful for program shutdown. It
+may be a bad feature to have because it means you have check for null before
+calling it if you don't want to free the internet structure.
+
+Freeing the internal structure isn't a problem if you don't care about loosing
+it. In fact, if you want to recover from an error, what you should do is
+free the internal structure so it gets out of the way of newer error messages
+after the recovery.
+
+Error recovery, though, isn't much supported by this module. As I said before,
+error handling in the program is pretty much: clean up, report, and quit.
+However, it wouldn't be hard to add more information to the ErrorInfo structure
+so that it can record error problems. For example:
+
+  - It could have an error code (int) and context memory (void*) that is fully
+  user manipulated.
+  - Users could create their own special macros that work in terms of ones
+  provided by the error module. These macros would call the underlying error.h
+  macros with the right error code and context creation code.
+  - Convention such as ERROR_H prefixed identifiers could be used to avoid
+  major identifier clashing.
+
+It wouldn't be the best or a pleasant system to work with. Error handling in C
+isn't something I know how to deal with in a way that I find enjoyable. But it
+would be useful and allow for the kinds of operations I want to work with:
+error issuing, reporting, handling/recovering.
+
+BUGS
+====
+Doing the C++ re-write showed me that it was useful to have a SDL wrapper for
+raising exceptions whenever SDL failed underneath. This made the C++ code
+for error issueing and reporting much more convenient to deal with than the C
+version.
+
+> As a side note, the C++ error issueing/reporting code is still more
+> convenient to work with in my opinion, even after the C refactoring. However,
+> the current C version of the error handling code is much more useful. A
+> similar mechanism would also be possible in C++, but it'd take away its
+> convenience.
+
+During the creation of that SDL wrapper, I had to look at the docs of many SDL
+functions and found out I didn't know SDL as well as I thought. I hadn't
+realized how many SDL calls can actually fail.
+
+As of now, writing this document, the bugs I can remember all had to do with
+that: making calls to SDL functions without realising they could fail.
+
+SINGLE THREADNESS
+=================
+The system is currently single threaded. The error handling system can be made
+multi threaded simply by making use of thread local variables. Each thread
+needs its own error handling subsystem. Their data aren't supposed to be
+shared.
+
+For the other system, something message passing-wise seems appropriated, but I
+haven't thought of anything yet. The games I have in mind are too simple to
+need any of the complications of multi-threaded code.
+
+THE QUAKE GAMES
+===============
+The Quake games (by ID software) were all done mostly in C. Maybe I'll look
+how error handling was done in there when I get to more complicated games.

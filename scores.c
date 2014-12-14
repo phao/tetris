@@ -12,8 +12,8 @@ enum {
   PADDING_PX = 15
 };
 
-static const struct SDL_Color PANEL_BG_COLOR = {0, 0, 0, 255};
-static const struct SDL_Color PANEL_BORDER_COLOR = {255, 255, 255, 255};
+static const SDL_Color PANEL_BG_COLOR = {0, 0, 0, 255};
+static const SDL_Color PANEL_BORDER_COLOR = {255, 255, 255, 255};
 
 static struct TextImage exit_hint, title;
 static struct TextImage score_texts[NUM_SCORES];

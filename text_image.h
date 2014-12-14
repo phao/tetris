@@ -13,10 +13,8 @@ struct TextImage {
   SDL_Renderer *rend;
 };
 
-typedef struct TextImage TextImage;
-
 int
-render_text_image(TextImage *t);
+render_text_image(struct TextImage *t);
 
 /**
  * Sets up a text image for you. It'll do the necessary steps to get a texture
@@ -27,16 +25,16 @@ render_text_image(TextImage *t);
  * user to setup. This function will zero the position.
  */
 int
-init_text_image(TextImage *ti,
+init_text_image(struct TextImage *ti,
                 TTF_Font *font,
                 const char *text,
                 SDL_Renderer *rend,
                 const SDL_Color *color);
 
 int
-in_bounds(const TextImage *ti, int x, int y);
+in_bounds(const struct TextImage *ti, int x, int y);
 
 void
-destroy_text_image(TextImage *ti);
+destroy_text_image(struct TextImage *ti);
 
 #endif

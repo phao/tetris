@@ -90,9 +90,8 @@ struct PieceTemplate {
   GridDim2D size;
 };
 
-typedef struct PieceTemplate PieceTemplate;
-
-static const PieceTemplate template[NUM_DIFFERENT_PIECES] = {
+static const struct PieceTemplate
+template[NUM_DIFFERENT_PIECES] = {
   { .fills = { {0, 0}, {1, 0}, {2, 0}, {3, 0} },
     .size = {4, 1} },
 
@@ -115,11 +114,8 @@ static const PieceTemplate template[NUM_DIFFERENT_PIECES] = {
     .size = {3, 2} }
 };
 
-typedef struct Panel Panel;
-typedef struct Score Score;
-
-static Panel panel;
-static Score score;
+static struct Panel panel;
+static struct Score score;
 static Uint32 last_update_ms;
 static SDL_Texture *block;
 static SDL_Renderer *g_rend;
@@ -138,8 +134,8 @@ panel_has_block(int x, int y) {
 
 static int
 is_colliding(void) {
-  const GridPoint2D *rel = &panel.falling_piece.relative;
-  const GridPoint2D *blocks = panel.falling_piece.blocks;
+  const struct GridPoint2D *rel = &panel.falling_piece.relative;
+  const struct GridPoint2D *blocks = panel.falling_piece.blocks;
 
   for (int i = 0; i < NUM_PIECE_PARTS; i++) {
     int x = rel->x + blocks[i].x;
@@ -154,8 +150,8 @@ is_colliding(void) {
 }
 
 static void
-flip(FallingPiece *piece) {
-  GridPoint2D *blocks = piece->blocks;
+flip(struct FallingPiece *piece) {
+  struct GridPoint2D *blocks = piece->blocks;
   int adj_x = 0;
   int adj_y = 0;
 
@@ -186,7 +182,7 @@ flip(FallingPiece *piece) {
 }
 
 static void
-flip_back(FallingPiece *piece) {
+flip_back(struct FallingPiece *piece) {
   flip(piece);
   flip(piece);
   flip(piece);
@@ -194,7 +190,7 @@ flip_back(FallingPiece *piece) {
 
 static int
 handle_event(const SDL_Event *e) {
-  GridPoint2D *rel = &panel.falling_piece.relative;
+  struct GridPoint2D *rel = &panel.falling_piece.relative;
   if (e->type == SDL_KEYDOWN) {
     switch (e->key.keysym.sym) {
       case SDLK_DOWN:
@@ -353,8 +349,8 @@ try_score(void) {
 
 static int
 fixate(void) {
-  const GridPoint2D *rel = &panel.falling_piece.relative;
-  const GridPoint2D *blocks = panel.falling_piece.blocks;
+  const struct GridPoint2D *rel = &panel.falling_piece.relative;
+  const struct GridPoint2D *blocks = panel.falling_piece.blocks;
 
   for (int i = 0; i < NUM_PIECE_PARTS; i++) {
     int x = rel->x + blocks[i].x;
@@ -377,7 +373,7 @@ update(void) {
     Uint32 delta_ms = now_ms - last_update_ms;
 
     if (delta_ms > FALL_DELAY_MS) {
-      GridPoint2D *rel = &panel.falling_piece.relative;
+      struct GridPoint2D *rel = &panel.falling_piece.relative;
 
       rel->y--;
       if (is_colliding()) {
@@ -461,7 +457,7 @@ render_falling_piece(void) {
   const int block_w = panel.block_dim.w;
   const int block_h = panel.block_dim.h;
 
-  const GridPoint2D *rel = &panel.falling_piece.relative;
+  const struct GridPoint2D *rel = &panel.falling_piece.relative;
 
   // Remembering that vertical indices grow from bottom -> up.
   const int base_x_px = rel->x*block_w;
@@ -472,7 +468,7 @@ render_falling_piece(void) {
   block_rect.h = panel.block_dim.h;
 
   for (int i = 0; i < NUM_PIECE_PARTS; i++) {
-    const GridPoint2D *block = panel.falling_piece.blocks + i;
+    const struct GridPoint2D *block = panel.falling_piece.blocks + i;
 
     // Remembering, again, that vertical indices grow from bottom -> up.
     block_rect.x = block->x*block_w + base_x_px;
@@ -578,7 +574,7 @@ init_game(SDL_Renderer *g_rend_, const PixelDim2D *screen_dim_) {
 
   block = get_tetris_block_img();
 
-  const ScreenObject self = {
+  const struct ScreenObject self = {
     .focus = focus,
     .render = render,
     .update = update,

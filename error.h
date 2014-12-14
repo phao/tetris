@@ -1,21 +1,15 @@
 #ifndef ERROR_H
 #define ERROR_H
 
-struct ErrorInfo;
-
-typedef struct ErrorInfo ErrorInfo;
-
 struct BasicString {
   char *data;
   int len;
 };
 
-typedef struct BasicString BasicString;
-
 struct ErrorInfo {
-  BasicString msg, file_name, func_name, code;
+  struct BasicString msg, file_name, func_name, code;
   int line;
-  ErrorInfo *next;
+  struct ErrorInfo *next;
 };
 
 /**
@@ -35,7 +29,7 @@ link_error(const char *msg,
  * Copies and returns the current internal error structure. You're responsible
  * to call clean_error on it later.
  */
-ErrorInfo*
+struct ErrorInfo*
 get_error(void);
 
 /**
@@ -46,7 +40,7 @@ get_error(void);
  * leak detecting tools will annoy you.
  */
 void
-free_error(ErrorInfo *err);
+free_error(struct ErrorInfo *err);
 
 /*
  * Control flow macros for simpler error handling.

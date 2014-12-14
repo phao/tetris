@@ -10,10 +10,10 @@
  * worth the trouble.
  */
 
-static ErrorInfo *err_info;
+static struct ErrorInfo *err_info;
 
 static int
-set_string(BasicString *string, const char *src) {
+set_string(struct BasicString *string, const char *src) {
   if (src) {
     int src_len = strlen(src);
     free(string->data);
@@ -32,15 +32,15 @@ set_string(BasicString *string, const char *src) {
   return 0;
 }
 
-static ErrorInfo*
-link_error_to(ErrorInfo *old_head,
+static struct ErrorInfo*
+link_error_to(struct ErrorInfo *old_head,
               const char *msg,
               int line,
               const char *file_name,
               const char *func_name,
               const char *code)
 {
-  ErrorInfo *new_head = malloc(sizeof (ErrorInfo));
+  struct ErrorInfo *new_head = malloc(sizeof (struct ErrorInfo));
   if (!new_head) {
     return 0;
   }
@@ -64,7 +64,7 @@ link_error(const char *msg,
            const char *func_name,
            const char *code)
 {
-  ErrorInfo *new_head = link_error_to(err_info, msg, line, file_name,
+  struct ErrorInfo *new_head = link_error_to(err_info, msg, line, file_name,
     func_name, code);
   if (!new_head
       || (!new_head->msg.data && msg)
@@ -82,9 +82,9 @@ link_error(const char *msg,
 
 ErrorInfo*
 get_error(void) {
-  ErrorInfo *out = 0;
-  for (ErrorInfo *n = err_info; n; n = n->next) {
-    ErrorInfo *aux = link_error_to(out, n->msg.data, n->line,
+  struct ErrorInfo *out = 0;
+  for (struct ErrorInfo *n = err_info; n; n = n->next) {
+    struct ErrorInfo *aux = link_error_to(out, n->msg.data, n->line,
       n->file_name.data, n->func_name.data, n->code.data);
     if (aux) {
       out = aux;
@@ -94,7 +94,7 @@ get_error(void) {
 }
 
 void
-free_error(ErrorInfo *err) {
+free_error(struct ErrorInfo *err) {
   if (!err) {
     err = err_info;
     err_info = 0;

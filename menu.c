@@ -14,8 +14,8 @@ enum {
   TOP_MENU_OFFSET = 250
 };
 
-static Dim2D screen_dim;
-static TextImage title, new_game, scores;
+static struct Dim2D screen_dim;
+static struct TextImage title, new_game, scores;
 static SDL_Renderer *g_rend;
 
 static void
@@ -85,7 +85,7 @@ init_menu(SDL_Renderer *g_rend_, const PixelDim2D *screen_dim_) {
   scores.pos.x = hor_center_within(&scores.dim, &screen_dim);
   scores.pos.y = TOP_MENU_OFFSET + new_game.dim.h;
 
-  ScreenObject self = {
+  const struct ScreenObject self = {
     .destroy = destroy,
     .handle_event = handle_event,
     .update = update,

@@ -9,8 +9,6 @@ enum ScreenId {
   MENU_SCREEN, GAME_SCREEN, SCORES_SCREEN
 };
 
-typedef enum ScreenId ScreenId;
-
 static const struct SDL_Color DEFAULT_FG_COLOR = {225, 225, 225, 255};
 
 enum {
@@ -21,8 +19,6 @@ struct GameContext {
   SDL_Renderer *rend;
   PixelDim2D dim;
 };
-
-typedef struct GameContext GameContext;
 
 typedef void (*ScreenDestroyFn)(void);
 typedef int (*ScreenHandleEventFn)(const SDL_Event *e);
@@ -38,16 +34,15 @@ struct ScreenObject {
   ScreenFocusFn focus;
 };
 
-typedef struct ScreenObject ScreenObject;
-
 /**
  * The given ScreenObject data will be copied interally by the implementation
  * of the register_screen function.
  */
 void
-register_screen(const ScreenId which, const ScreenObject *screen);
+register_screen(const enum ScreenId which,
+                const struct ScreenObject *screen);
 
 void
-change_screen(const ScreenId which);
+change_screen(const enum ScreenId which);
 
 #endif
